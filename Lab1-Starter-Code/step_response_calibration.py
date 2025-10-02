@@ -239,7 +239,7 @@ def analyze_step_data(csv_filename):
     
     print(f"\nAnalyzing step calibration data from {csv_filename}...")
     
-    # Load data
+    # Local import keeps pandas optional until analysis time (collection can run w/o it).
     import pandas as pd
     try:
         df = pd.read_csv(csv_filename)
@@ -249,13 +249,13 @@ def analyze_step_data(csv_filename):
     
     print(f"Loaded {len(df)} samples")
     
-    # Extract arrays
-    mission_time = df['mission_time'].values
-    step_indices = df['step_index'].values
-    velocity_cmds = df['velocity_cmd'].values
-    height_sonar = df['height_sonar'].values
-    height_baro = df['height_baro'].values
-    velocity_measured = df['velocity_z'].values
+    # ----- Extract columns we need as NumPy arrays for speed/convenience -----
+    mission_time     = df['mission_time'].values
+    step_indices     = df['step_index'].values
+    velocity_cmds    = df['velocity_cmd'].values
+    height_sonar     = df['height_sonar'].values
+    height_baro      = df['height_baro'].values
+    velocity_measured= df['velocity_z'].values
     
     ensure_dir(OUTPUT_DIR)
     
@@ -283,79 +283,186 @@ def analyze_step_data(csv_filename):
     plt.savefig(os.path.join(OUTPUT_DIR, 'step_response.png'), dpi=200, bbox_inches='tight')
     plt.close()
     
-    # ==================== TODO: STEP-BY-STEP ANALYSIS ====================
+    # ==================== STEP-BY-STEP ANALYSIS ====================
     print(f"\nStep-by-step analysis:")
     
-    calibration_table = []
+    calibration_table = []  # we will store per-step summaries here (later saved to CSV)
     
-    # TODO: For each step in the sequence, calculate actual vs expected height change
-    # 1. Loop through unique step_index values: sorted(df['step_index'].unique())
-    # 2. For each step:
-    #    a. Extract data for that step: df[df['step_index'] == step_idx]
-    #    b. Get velocity command (first value in step)
-    #    c. Calculate duration = len(step_data) * SAMPLE_DT
-    #    d. Calculate expected change = velocity_cmd * duration
-    #    e. Measure actual change for both sensors:
-    #       - Use first 10 samples for pre-height (median for robustness)
-    #       - Use last 10 samples for post-height (median)
-    #       - actual_change = post_height - pre_height
-    #    f. Store results in calibration_table list
-    #    g. Print summary for each step
-    #
-    # Hint: Skip steps with < 10 samples
-    # Hint: Use .iloc[:10] for first 10, .iloc[-10:] for last 10
-    # Hint: Use .median() instead of .mean() to reduce noise effects
+    # We iterate over each unique step in the same order they were executed.
+    unique_steps = sorted(df['step_index'].unique())
     
-    print("TODO: Implement step-by-step analysis")
+    # For robustness we use medians of the first/last few samples in each step
+    # to estimate pre/post heights; this reduces the impact of noise/outliers.
+    PRE_N  = 10  # number of samples from the start of a step for "pre" statistic
+    POST_N = 10  # number of samples from the end of a step for "post" statistic
     
-    # ==================== TODO: CALIBRATION REGRESSION ====================
+    for step_idx in unique_steps:
+        # Select the rows belonging to this step.
+        step_df = df[df['step_index'] == step_idx]
+        n = len(step_df)
+        if n < max(PRE_N, POST_N):
+            # Skip very short steps; we can't form reliable pre/post medians.
+            print(f"  - Step {step_idx}: skipped (too few samples: {n})")
+            continue
+        
+        # Velocity command for this step (constant within step by construction).
+        v_cmd = float(step_df['velocity_cmd'].iloc[0])
+        
+        # Duration estimate: either use count * SAMPLE_DT (nominal) or true time span.
+        # We prefer the measured mission_time span for better accuracy.
+        t0 = float(step_df['mission_time'].iloc[0])
+        t1 = float(step_df['mission_time'].iloc[-1])
+        duration_s = max(0.0, t1 - t0)
+        if duration_s == 0.0:
+            # Fallback to nominal if timestamps are degenerate.
+            duration_s = n * float(SAMPLE_DT)
+        
+        # Expected height change from command assuming perfect tracking:
+        # Δh_expected ≈ v_cmd * duration
+        expected_dh = v_cmd * duration_s
+        
+        # Compute robust pre/post height for each sensor using medians.
+        # We explicitly use the first PRE_N and last POST_N rows within the step.
+        pre_sonar  = float(step_df['height_sonar'].iloc[:PRE_N].median(skipna=True))
+        post_sonar = float(step_df['height_sonar'].iloc[-POST_N:].median(skipna=True))
+        pre_baro   = float(step_df['height_baro'].iloc[:PRE_N].median(skipna=True))
+        post_baro  = float(step_df['height_baro'].iloc[-POST_N:].median(skipna=True))
+        
+        # Actual height changes measured by each sensor.
+        sonar_dh = post_sonar - pre_sonar
+        baro_dh  = post_baro  - pre_baro
+        
+        # Save a concise summary row for this step. Keep everything numeric + simple types.
+        calibration_table.append({
+            'step_index': step_idx,
+            'velocity_cmd_mps': v_cmd,
+            'samples': n,
+            'duration_s': duration_s,
+            'expected_dh_m': expected_dh,
+            'sonar_dh_m': float(sonar_dh),
+            'baro_dh_m': float(baro_dh),
+            'pre_sonar_m': pre_sonar,
+            'post_sonar_m': post_sonar,
+            'pre_baro_m': pre_baro,
+            'post_baro_m': post_baro,
+        })
+        
+        # Human-readable one-line summary for quick terminal sanity check.
+        print(f"  - Step {step_idx:02d} | v_cmd={v_cmd:+.2f} m/s | dur={duration_s:4.2f} s | "
+              f"Δh_exp={expected_dh:+.2f} m | Δh_sonar={sonar_dh:+.2f} m | Δh_baro={baro_dh:+.2f} m")
+    
+    # If the table is empty (e.g., all steps skipped), stop here gracefully.
+    if not calibration_table:
+        print("No usable steps found for calibration.")
+        return
+    
+    # ==================== CALIBRATION REGRESSION ====================
     print(f"\nCalibration analysis:")
     
-    # TODO: Perform linear regression to find calibration factors
-    # 1. Extract only steps where velocity != 0 (movement steps)
-    # 2. Create arrays of expected vs actual changes for both sensors
-    # 3. Use np.polyfit(expected, actual, 1) to fit line
-    #    - Returns [scale, bias] where: actual = scale * expected + bias
-    # 4. Calculate R-squared for goodness of fit:
-    #    - Predict: actual_pred = scale * expected + bias
-    #    - ss_res = sum((actual - actual_pred)²)
-    #    - ss_tot = sum((actual - mean(actual))²)
-    #    - R² = 1 - (ss_res / ss_tot)
-    # 5. Do this for both sonar and barometer
-    # 6. Calculate RMSE for both sensors
-    # 7. Print calibration equations and metrics
-    #
-    # Hint: Perfect calibration would be scale=1.0, bias=0.0, R²=1.0
-    # Hint: Higher R² = better linear relationship
+    # Convert table to DataFrame for convenient filtering/analysis.
+    calib_df = pd.DataFrame(calibration_table)
     
-    print("TODO: Implement calibration regression")
+    # We calibrate using **movement** steps only (exclude holds where v_cmd == 0).
+    move_df = calib_df[np.abs(calib_df['velocity_cmd_mps']) > 1e-6].copy()
+    if move_df.empty:
+        print("No movement steps available for regression. Aborting calibration fit.")
+        return
     
-    # Dummy values for now - replace with your calculations
-    sonar_scale, sonar_bias, sonar_r2 = 1.0, 0.0, 0.0
-    baro_scale, baro_bias, baro_r2 = 1.0, 0.0, 0.0
-    sonar_rmse, baro_rmse = 0.0, 0.0
+    # Prepare regression data:
+    # x = expected height change from command; y = actual measured change.
+    x = move_df['expected_dh_m'].values.astype(float)
+    y_sonar = move_df['sonar_dh_m'].values.astype(float)
+    y_baro  = move_df['baro_dh_m'].values.astype(float)
     
-    # ==================== TODO: SAVE RESULTS ====================
+    # Helper to compute a robust linear fit and goodness metrics.
+    def fit_line(x, y):
+        """
+        Fit y ≈ s*x + b and compute (s, b, r2, rmse).
+        Handles degenerate cases (constant y, length < 2).
+        """
+        x = np.asarray(x, dtype=float)
+        y = np.asarray(y, dtype=float)
+        
+        # Require at least 2 points to fit a line.
+        if x.size < 2:
+            return 1.0, 0.0, 0.0, float('nan')
+        
+        # Fit slope and bias via least squares.
+        s, b = np.polyfit(x, y, 1)
+        
+        # Predictions and residuals.
+        y_hat = s * x + b
+        resid = y - y_hat
+        
+        # R^2: 1 - SS_res/SS_tot (guard against zero variance).
+        ss_res = float(np.sum(resid**2))
+        ss_tot = float(np.sum((y - np.mean(y))**2))
+        r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
+        
+        # RMSE of the fit residuals.
+        rmse = float(np.sqrt(np.mean(resid**2)))
+        return float(s), float(b), float(max(min(r2, 1.0), 0.0)), rmse
     
-    # TODO: Save calibration table to CSV
-    # Use pandas: pd.DataFrame(calibration_table).to_csv(...)
+    # Fit separate calibration lines for sonar and barometer.
+    sonar_scale, sonar_bias, sonar_r2, sonar_rmse = fit_line(x, y_sonar)
+    baro_scale,  baro_bias,  baro_r2,  baro_rmse  = fit_line(x, y_baro)
     
-    # TODO: Determine recommended sensor
-    # Compare R² and RMSE - higher R², lower RMSE is better
+    # Print the calibration equations and metrics for quick review.
+    print(f"  Sonar:  Δh_meas ≈ {sonar_scale:.3f} * Δh_exp + {sonar_bias:+.3f}   "
+          f"(R²={sonar_r2:.3f}, RMSE={sonar_rmse:.3f} m)")
+    print(f"  Baro :  Δh_meas ≈ {baro_scale:.3f} * Δh_exp + {baro_bias:+.3f}   "
+          f"(R²={baro_r2:.3f}, RMSE={baro_rmse:.3f} m)")
     
-    recommended_sensor = "SONAR"  # TODO: Determine from analysis
+    # ==================== SAVE RESULTS ====================
+    # 1) Save the per-step table so you can audit which steps drove the fit.
+    table_path = os.path.join(OUTPUT_DIR, 'step_calibration_table.csv')
+    calib_df.to_csv(table_path, index=False)
+    print(f"Saved per-step table → {table_path}")
     
-    # TODO: Save results to JSON file
-    # Include: recommended_sensor, sonar_calibration{scale, bias, r2, rmse},
-    #          barometer_calibration{scale, bias, r2, rmse}
+    # 2) Decide which sensor to recommend for altitude control.
+    #    Simple rule: prefer higher R²; if nearly tied (≤0.02 apart), pick lower RMSE.
+    if (baro_r2 - sonar_r2) > 0.02:
+        recommended_sensor = "BAROMETER"
+    elif (sonar_r2 - baro_r2) > 0.02:
+        recommended_sensor = "SONAR"
+    else:
+        recommended_sensor = "BAROMETER" if baro_rmse < sonar_rmse else "SONAR"
     
+    # 3) Save a compact JSON with the calibration results for easy reuse by Phase 3.
+    results = {
+        "recommended_sensor": recommended_sensor,
+        "sonar_calibration": {
+            "scale": sonar_scale,
+            "bias": sonar_bias,
+            "r2": sonar_r2,
+            "rmse": sonar_rmse
+        },
+        "barometer_calibration": {
+            "scale": baro_scale,
+            "bias": baro_bias,
+            "r2": baro_r2,
+            "rmse": baro_rmse
+        },
+        # For reproducibility/context
+        "notes": {
+            "pre_samples": PRE_N,
+            "post_samples": POST_N,
+            "sample_dt_nominal": SAMPLE_DT,
+            "csv_source": os.path.basename(csv_filename)
+        }
+    }
+    results_path = os.path.join(OUTPUT_DIR, 'step_calibration_results.json')
+    with open(results_path, 'w') as f:
+        json.dump(results, f, indent=2)
+    print(f"Saved calibration results → {results_path}")
+    
+    # 4) Print a summary block for the lab report.
     print(f"\n{'='*60}")
     print("PHASE 2 CALIBRATION RESULTS")
     print(f"{'='*60}")
-    print(f"TODO: Print calibration results")
     print(f"Recommended sensor: {recommended_sensor}")
-    
-    print(f"\nTODO: Save calibration results to JSON file")
+    print(f"Sonar  : scale={sonar_scale:.3f}, bias={sonar_bias:+.3f}, R²={sonar_r2:.3f}, RMSE={sonar_rmse:.3f} m")
+    print(f"Baro   : scale={baro_scale:.3f},  bias={baro_bias:+.3f},  R²={baro_r2:.3f},  RMSE={baro_rmse:.3f} m")
 
 def main():
     print("Phase 2: Step Response Calibration")

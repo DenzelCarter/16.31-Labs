@@ -150,31 +150,39 @@ def move_to_initial_position(tello, target_altitude, duration):
 
 def heuristic_controller(current_altitude, target_altitude, tolerance):
     """
-    Simple if-else controller logic.
-    
-    TODO: Implement the if-else control logic:
-    1. Calculate error = target_altitude - current_altitude
-    2. If error > tolerance: return VELOCITY_UP and "CLIMB"
-    3. If error < -tolerance: return VELOCITY_DOWN and "DESCEND"  
-    4. Otherwise: return VELOCITY_HOLD and "HOLD"
-    
-    Use the provided VELOCITY_UP, VELOCITY_DOWN, and VELOCITY_HOLD constants.
-    
-    Args:
-        current_altitude: Current measured altitude [m]
-        target_altitude: Desired altitude [m]
-        tolerance: Acceptable error band [m]
-    
+    Simple bang-bang (if-else) altitude controller.
+
+    Behavior (per lab spec for Phase 3):
+      - Compute error e = target - current
+      - If error is larger than the positive tolerance → command a fixed upward velocity
+      - If error is smaller than the negative tolerance → command a fixed downward velocity
+      - Otherwise (within band) → command zero velocity (hold)
+
     Returns:
-        velocity_command: Commanded vertical velocity [m/s]
-        control_action: String describing the action ("CLIMB", "DESCEND", or "HOLD")
+      velocity_command [m/s], control_action string ("CLIMB" | "DESCEND" | "HOLD")
     """
-    # TODO: Implement if-else control logic here (should be ~5-10 lines)
-    error = 0.0  # TODO: Calculate error
-    velocity_command = 0.0  # TODO: Determine velocity command based on error
-    control_action = "HOLD"  # TODO: Determine action string
-    
-    return velocity_command, control_action
+
+    # 1) Tracking error: positive if we're below the setpoint, negative if above.
+    error = float(target_altitude) - float(current_altitude)
+
+    # 2) Compare against the symmetric tolerance band ±tolerance.
+    #    Outside the band → move; inside the band → hold.
+    if error > tolerance:
+        # Too low by more than tolerance → climb at fixed speed.
+        velocity_command = VELOCITY_UP     # per constants at top of file
+        control_action  = "CLIMB"
+    elif error < -tolerance:
+        # Too high by more than tolerance → descend at fixed speed.
+        velocity_command = VELOCITY_DOWN   # per constants at top of file
+        control_action  = "DESCEND"
+    else:
+        # Within tolerance band → hold position (zero vertical command).
+        velocity_command = VELOCITY_HOLD
+        control_action  = "HOLD"
+
+    # 3) Return both the numeric command (used by RC conversion) and a human-readable tag
+    #    (useful for logs and the control action timeline plot).
+    return float(velocity_command), control_action
 
 # ============================================================================
 # PROVIDED: Performance metrics calculation

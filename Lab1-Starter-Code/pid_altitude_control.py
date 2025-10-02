@@ -99,40 +99,52 @@ class PIDController:
     def update(self, setpoint, measured_value):
         """
         Update PID controller with new measurement.
-        
-        TODO: Implement PID calculation
-        1. Calculate error = setpoint - measured_value
-        2. Calculate proportional term: P = kp * error
-        3. Update and calculate integral term:
-           - self.integral += error * self.dt  (accumulate error over time)
-           - I = ki * self.integral
-        4. Calculate derivative term:
-           - If first run: D = 0 (no previous error to compare)
-           - Otherwise: D = kd * (error - self.previous_error) / self.dt
-           - Set self.first_run = False after first calculation
-        5. Calculate total output = P + I + D
-        6. Clamp output to [-1.0, 1.0] for safety
-        7. Store current error as self.previous_error for next iteration
-        8. Return: (output, P, I, D) for logging/plotting
-        
-        Args:
-            setpoint: Desired altitude [m]
-            measured_value: Current altitude [m]
-        
-        Returns:
-            output: Control output (velocity command) [m/s]
-            proportional: P term value
-            integral: I term value  
-            derivative: D term value
+
+        Implements the Phase 4 PID equations exactly as specified in the lab handout:
+          e(t) = setpoint - measured_value
+          u_P = Kp * e(t)
+          integral(t) = integral(t-1) + e(t) * dt
+          u_I = Ki * integral(t)
+          u_D = Kd * (e(t) - e(t-1)) / dt           (set to 0 on first iteration)
+          u   = u_P + u_I + u_D
+        Output is clamped to [-1.0, 1.0] to match the velocity-to-RC mapping. 
+        Returns the total output and each PID term for logging/plots. 
+        This aligns with Task 4.1 requirements. :contentReference[oaicite:0]{index=0}
         """
-        # TODO: Implement PID calculation here (~15-20 lines)
-        error = 0.0  # TODO
-        proportional = 0.0  # TODO
-        integral = 0.0  # TODO
-        derivative = 0.0  # TODO
-        output = 0.0  # TODO
-        
-        return output, proportional, integral, derivative
+        # 1) Tracking error (positive if we are below the setpoint)
+        error = float(setpoint) - float(measured_value)
+
+        # 2) Proportional term: immediate response to current error
+        proportional = self.kp * error
+
+        # 3) Integral term: accumulate error over time to remove steady-state bias
+        #    integral_k = integral_{k-1} + e_k * dt
+        self.integral += error * self.dt
+        integral = self.ki * self.integral
+
+        # 4) Derivative term: slope of error, damps fast changes/overshoot
+        if self.first_run:
+            # No previous error on the very first call → derivative = 0 by convention
+            derivative = 0.0
+            self.first_run = False
+        else:
+            # (e_k - e_{k-1}) / dt
+            derivative = self.kd * (error - self.previous_error) / self.dt
+
+        # 5) Sum the three contributions
+        output = proportional + integral + derivative
+
+        # 6) Clamp to safe velocity range; velocity_to_rc expects [-1, 1] → [-100, 100] RC
+        if output > 1.0:
+            output = 1.0
+        elif output < -1.0:
+            output = -1.0
+
+        # 7) Persist state for the next iteration (needed for derivative & integral continuity)
+        self.previous_error = error
+
+        # 8) Return total output and decomposed terms for logging/plotting dashboards
+        return float(output), float(proportional), float(integral), float(derivative)
     
     def reset(self):
         """Reset PID internal state"""

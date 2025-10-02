@@ -37,77 +37,164 @@ def ensure_dir(path):
 
 def calculate_noise_level(signal, detrend_window=None):
     """
-    Estimate noise level by calculating standard deviation after detrending.
+    Estimate the sensor's noise level as the standard deviation of the
+    signal after removing slow trends (moving-average detrend).
+
+    Why detrend?
+      - Raw sensor streams often include slow changes from setpoint moves,
+        temperature drift, or vehicle dynamics. Those aren't "noise".
+      - By subtracting a moving average (low-pass estimate of the trend),
+        the residual mostly reflects high-frequency noise.
+
+    Parameters
+    ----------
+    signal : array-like
+        1D vector of samples (e.g., height, acceleration). Can include NaNs.
+    detrend_window : int or None
+        Length (in samples) of the moving-average window used to estimate
+        the trend. If None, we pick ~10% of the segment length (min 5).
+        The window is forced odd to make the filter symmetric.
+
+    Returns
+    -------
+    float
+        Estimated noise standard deviation (same units as the signal).
+        Returns np.nan if the input is empty; returns 0.0 for size==1.
     """
     s = np.asarray(signal, dtype=float)
+
+    # Keep only finite values so NaNs/Infs don't propagate.
     mask = np.isfinite(s)
     s = s[mask]
     n = s.size
     if n == 0:
         return np.nan
     if n < 10:
+        # With very short segments, just return the raw STD (best we can do).
         return float(np.std(s, ddof=1)) if n > 1 else 0.0
 
-    # Moving-average detrend
+    # Choose a default detrend window if none provided:
+    #  - use ~10% of the samples, clamped to [3, inf), and make it odd.
     if detrend_window is None:
-        detrend_window = max(5, n // 10)  # ~10% of segment
+        detrend_window = max(5, n // 10)
     detrend_window = int(detrend_window)
     detrend_window = max(3, detrend_window)
-    # Force odd window length for symmetric padding
     if detrend_window % 2 == 0:
         detrend_window += 1
+
+    # Half-window for edge padding size (symmetric padding reduces edge bias).
     k = detrend_window // 2
 
-    # Pad to reduce edge effects, then convolve and trim back
+    # Build simple boxcar (moving-average) kernel.
     w = np.ones(detrend_window, dtype=float) / detrend_window
+
+    # Pad the series so the 'valid' convolution returns exactly n samples.
     s_padded = np.pad(s, (k, k), mode="edge")
-    trend = np.convolve(s_padded, w, mode="valid")  # length n
+
+    # Trend is the moving-average of the padded signal, trimmed back to length n.
+    trend = np.convolve(s_padded, w, mode="valid")
+
+    # High-frequency residual approximates noise.
     detrended = s - trend
 
+    # Use sample STD (ddof=1) to avoid bias on finite samples.
     return float(np.std(detrended, ddof=1))
 
 
 def calculate_drift_rate(timestamps, signal):
     """
-    Calculate linear drift rate using least squares fit.
-    Returns (drift_rate [units/s], R^2)
+    Estimate linear drift (slope) of a sensor by fitting s ≈ m*t + b.
+
+    Rationale
+      - Some sensors exhibit slow, near-linear drift due to temperature,
+        pressure, bias creep, etc. A simple least-squares line fit captures
+        the average drift rate over the window.
+
+    Parameters
+    ----------
+    timestamps : array-like
+        Time stamps in seconds (monotonic, but minor jitter is OK). Can include NaNs.
+    signal : array-like
+        Sensor measurements aligned with timestamps. Can include NaNs.
+
+    Returns
+    -------
+    (drift_rate, r2) : (float, float)
+        drift_rate : slope m in units of (signal units)/second.
+        r2         : coefficient of determination [0..1] indicating how
+                     "linear" the data is (1.0 = perfectly linear).
+                     Returns 0.0 if variance is zero or too little data.
     """
     t = np.asarray(timestamps, dtype=float)
     s = np.asarray(signal, dtype=float)
+
+    # Use only pairs where both time and signal are finite.
     mask = np.isfinite(t) & np.isfinite(s)
     t = t[mask]
     s = s[mask]
     if t.size < 2:
         return 0.0, 0.0
 
-    # Linear fit s ≈ m*t + b
+    # Least-squares linear fit: s_hat = m*t + b
     m, b = np.polyfit(t, s, 1)
+
+    # Goodness of fit (R^2): how much of the variance is explained by the line.
     s_hat = m * t + b
     resid = s - s_hat
     ss_res = float(np.sum(resid ** 2))
     ss_tot = float(np.sum((s - np.mean(s)) ** 2))
     r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
 
+    # Clamp R^2 into [0, 1] for numeric safety.
     return float(m), float(max(min(r2, 1.0), 0.0))
 
 
 def analyze_sampling_rate(timestamps):
     """
-    Analyze sampling rate consistency and statistics.
-    Returns mean_rate, rate_std, rate_min, rate_max (Hz).
+    Compute sampling-rate statistics from time stamps.
+
+    Method
+      - Convert timestamps to inter-sample intervals dt = diff(t).
+      - Filter to 'plausible' intervals: (0, 1.0) s to ignore big gaps
+        from pauses or logging hiccups (tuned for a target ~10 Hz system).
+      - Convert to instantaneous rates r = 1/dt and summarize.
+
+    Parameters
+    ----------
+    timestamps : array-like
+        Time stamps in seconds. Can include NaNs and occasional gaps.
+
+    Returns
+    -------
+    mean_rate, rate_std, rate_min, rate_max : floats (Hz)
+        mean_rate : average instantaneous sampling rate
+        rate_std  : sample std dev of instantaneous rate (jitter indicator)
+        rate_min  : minimum observed rate over valid intervals
+        rate_max  : maximum observed rate over valid intervals
+
+    Notes
+    -----
+    - If no valid intervals remain after filtering, returns NaNs.
+    - For strictly uniform sampling at 10 Hz, expect:
+        mean_rate ≈ 10, rate_std ≈ 0, rate_min ≈ rate_max ≈ 10.
     """
     t = np.asarray(timestamps, dtype=float)
     if t.size < 2:
         return np.nan, np.nan, np.nan, np.nan
 
+    # First differences (time between consecutive samples).
     dt = np.diff(t)
-    # Keep only plausible intervals (exclude dropped-frame gaps > 1 s)
+
+    # Keep only finite, positive intervals smaller than 1 second.
+    #  - Removes zeros/negatives (bad clocks) and large gaps (e.g., pauses).
     valid = np.isfinite(dt) & (dt > 0) & (dt < 1.0)
     dt_valid = dt[valid]
     if dt_valid.size == 0:
         return np.nan, np.nan, np.nan, np.nan
 
+    # Instantaneous sampling rate at each interval.
     rates = 1.0 / dt_valid
+
     mean_rate = float(np.mean(rates))
     rate_std = float(np.std(rates, ddof=1)) if rates.size > 1 else 0.0
     rate_min = float(np.min(rates))
@@ -117,37 +204,72 @@ def analyze_sampling_rate(timestamps):
 
 def compare_height_sensors(height_sonar, height_baro, target_altitudes):
     """
-    Compare sonar and barometer height sensor performance.
-    Returns:
-        bias (baro - sonar) [m],
-        correlation,
-        sonar_dropout_rate,
-        baro_dropout_rate,
-        sonar_rmse,
-        baro_rmse
+    Cross-compare sonar and barometer altitude measurements and quantify
+    performance relative to commanded/target altitude.
+
+    Metrics reported
+      - bias (baro - sonar): mean difference where both sensors are valid
+      - correlation: linear correlation coefficient between sensors
+      - sonar_dropout_rate: fraction of sonar samples that are NaN/Inf
+      - baro_dropout_rate: fraction of baro samples that are NaN/Inf
+      - sonar_rmse: RMSE between sonar and target altitude
+      - baro_rmse: RMSE between baro and target altitude
+
+    Parameters
+    ----------
+    height_sonar : array-like
+        Sonar altitude (meters). Can include NaNs during out-of-range or loss.
+    height_baro : array-like
+        Barometer altitude (meters). Can include NaNs.
+    target_altitudes : array-like
+        Commanded or reference altitude (meters), aligned in time with sensors.
+
+    Returns
+    -------
+    bias, corr, sonar_dropout, baro_dropout, sonar_rmse, baro_rmse : floats
+        bias          : mean(baro - sonar) over samples where both are valid
+        corr          : Pearson correlation between sonar and baro (NaN if <2 pairs)
+        sonar_dropout : fraction of invalid sonar samples
+        baro_dropout  : fraction of invalid baro samples
+        sonar_rmse    : RMSE(sonar, target) using samples where both are valid
+        baro_rmse     : RMSE(baro, target) using samples where both are valid
+
+    Notes
+    -----
+    - Bias sign convention (baro - sonar):
+        > 0  → baro reads higher than sonar on average
+        < 0  → baro reads lower than sonar on average
+    - RMSE is computed independently for each sensor against target, using
+      only the samples valid for that sensor (to avoid penalizing dropouts
+      as large errors).
     """
     sonar = np.asarray(height_sonar, dtype=float)
     baro = np.asarray(height_baro, dtype=float)
     target = np.asarray(target_altitudes, dtype=float)
 
-    # Bias and correlation (where both valid)
+    # Identify indices where both sensors are valid for bias/correlation.
     valid_both = np.isfinite(sonar) & np.isfinite(baro)
-    if np.count_nonzero(valid_both) >= 2:
+    n_both = int(np.count_nonzero(valid_both))
+
+    if n_both >= 2:
+        # Mean difference and correlation when we have at least two pairs.
         bias = float(np.mean(baro[valid_both] - sonar[valid_both]))
         corr = float(np.corrcoef(sonar[valid_both], baro[valid_both])[0, 1])
-    elif np.count_nonzero(valid_both) == 1:
-        # With a single overlapping sample, bias is defined, correlation is undefined
+    elif n_both == 1:
+        # With a single overlapping sample, correlation is undefined;
+        # bias is still meaningful for that one pair.
         bias = float((baro[valid_both] - sonar[valid_both])[0])
         corr = np.nan
     else:
+        # No overlap: cannot compute bias or correlation.
         bias = np.nan
         corr = np.nan
 
-    # Dropout rates
+    # Dropout rates: fraction of samples that are invalid (NaN/Inf).
     sonar_dropout = float(np.mean(~np.isfinite(sonar))) if sonar.size else np.nan
     baro_dropout = float(np.mean(~np.isfinite(baro))) if baro.size else np.nan
 
-    # RMSE vs target altitudes (use each sensor's own valid samples)
+    # RMSE vs target for each sensor computed on that sensor's valid samples.
     valid_sonar = np.isfinite(sonar) & np.isfinite(target)
     valid_baro = np.isfinite(baro) & np.isfinite(target)
 
