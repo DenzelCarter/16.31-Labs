@@ -187,7 +187,7 @@ def analyze_sampling_rate(timestamps):
 
     # Keep only finite, positive intervals smaller than 1 second.
     #  - Removes zeros/negatives (bad clocks) and large gaps (e.g., pauses).
-    valid = np.isfinite(dt) & (dt > 0) & (dt < 1.0)
+    valid = np.isfinite(dt) & (dt > 0.001) & (dt < 1.0)
     dt_valid = dt[valid]
     if dt_valid.size == 0:
         return np.nan, np.nan, np.nan, np.nan
