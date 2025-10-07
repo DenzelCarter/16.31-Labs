@@ -1,0 +1,18 @@
+PERFORMANCE COMPARISON: HEURISTIC vs PID CONTROL
+============================================================
+Test Trajectory: 0.5m -> 1.5m (30 seconds)
+Both controllers tested under identical conditions
+
+Metric                         If-Else Controller   PID Controller  Winner    
+---------------------------------------------------------------------------
+Settling time [s]              inf                  19.06           PID       
+Steady-state error [m]         0.153                0.041           PID       
+Rise time [s]                  0.94                 14.00           Heuristic 
+Maximum overshoot [%]          35.3                 1.3             PID       
+Control chattering [switches/min] 0.0                  0.0             Tie       
+RMS error [m]                  0.240                0.287           Heuristic 
+
+SUMMARY:
+PID Controller wins: 3/6 metrics
+If-Else Controller wins: 2/6 metrics
+Ties: 1/6 metrics

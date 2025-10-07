@@ -1,0 +1,21 @@
+{
+  "recommended_sensor": "SONAR",
+  "sonar_calibration": {
+    "scale": 0.351536513098458,
+    "bias": 0.024065119480406617,
+    "r2": 0.9705993183988881,
+    "rmse": 0.04489902056806179
+  },
+  "barometer_calibration": {
+    "scale": 0.36210463923199704,
+    "bias": -0.0016018172583197462,
+    "r2": 0.9549734992702248,
+    "rmse": 0.057700588900200085
+  },
+  "notes": {
+    "pre_samples": 10,
+    "post_samples": 10,
+    "sample_dt_nominal": 0.05,
+    "csv_source": "step_calibration_data.csv"
+  }
+}

@@ -777,49 +777,106 @@ def analyze_final_test(data, kp, ki, kd):
     print(f"\nResults saved to {results_file}")
 
 def main():
-    """Main function to execute the PID tuning procedure"""
-    
+    """Main entry point for Phase 4 PID tuning and final comparison.
+
+    Behavior:
+      - If a saved tuning JSON exists (OUTPUT_DIR/simple_pid_tuning_results.json),
+        we *skip the entire tuning pass* and directly run the final comparison
+        using those gains (fast path).
+      - Otherwise, we run the systematic tuning (P → PI → PID), then run the
+        final comparison with the best gains found.
+      - In both paths we print the same completion banner and return (kp, ki, kd).
+    """
+
     print("Lab 1 - Phase 4: PID Tuning with Systematic Gain Selection")
     print("=" * 80)
-    print(f"Test pattern: {INITIAL_ALTITUDE:.1f}m → {TARGET_ALTITUDE:.1f}m → {INITIAL_ALTITUDE:.1f}m for each gain")
-    print(f"Analysis focuses on {INITIAL_ALTITUDE:.1f}m → {TARGET_ALTITUDE:.1f}m (matches heuristic baseline)")
+    print(f"Test pattern: {INITIAL_ALTITUDE:.1f} m → {TARGET_ALTITUDE:.1f} m → {INITIAL_ALTITUDE:.1f} m for each gain")
+    print(f"Analysis focuses on {INITIAL_ALTITUDE:.1f} m → {TARGET_ALTITUDE:.1f} m (matches heuristic baseline)")
     print("Systematic progression: P → PI → PID")
-    
+
+    # ----------------------- FAST PATH (skip tuning) ------------------------
+    # If results from a previous tuning session exist, use them directly.
+    # This avoids re-flying the long tuning sweep when the battery is low.
+    from pathlib import Path
+    tuning_file = Path(OUTPUT_DIR) / "simple_pid_tuning_results.json"
+    if tuning_file.exists():
+        try:
+            import json
+            with open(tuning_file, "r") as f:
+                data = json.load(f)
+
+            # Expect schema: {"best_gains": {"kp": float, "ki": float, "kd": float}, ...}
+            gains = data.get("best_gains", {})
+            kp = float(gains["kp"])
+            ki = float(gains["ki"])
+            kd = float(gains["kd"])
+
+            print("\nDetected existing tuning results → skipping tuning.")
+            print(f"Using saved gains: Kp={kp:.3f}, Ki={ki:.3f}, Kd={kd:.3f}")
+
+            # Run the final comparison test (produces CSV/plots/metrics)
+            csv_filename = run_final_comparison_test(kp, ki, kd)
+
+            # Print the same completion banner used after tuning so the UX matches
+            if csv_filename:
+                print(f"\n{'='*80}")
+                print("PHASE 4 COMPLETE!")
+                print(f"{'='*80}")
+                print(f"Optimized PID gains (from saved JSON): Kp={kp:.2f}, Ki={ki:.3f}, Kd={kd:.3f}")
+                print("Files created:")
+                print(f"  - {csv_filename}")
+                print(f"  - {OUTPUT_DIR}/simple_pid_tuning_results.json  (loaded)")
+                print(f"  - {OUTPUT_DIR}/final_comparison_results.json")
+                print("  - Individual plots for prior tuning runs (already on disk)")
+                print("  - Final comparison plot (updated)")
+                print(f"\nAll results saved in {OUTPUT_DIR}/")
+                print("\nReady for comparison with Phase 3 heuristic results!")
+                print(f"Both controllers tested on same {INITIAL_ALTITUDE:.1f} m → {TARGET_ALTITUDE:.1f} m trajectory")
+                return kp, ki, kd
+            else:
+                print("Final comparison test failed.")
+                return None, None, None
+
+        except (KeyError, ValueError, json.JSONDecodeError) as e:
+            # If the file exists but is malformed or missing keys, fall back to full tuning.
+            print(f"\nSaved tuning file found but invalid ({e}). Proceeding with full tuning...")
+
+    # ------------------------- FULL TUNING PATH -----------------------------
+    # If we’re here, either no JSON exists or it was invalid → run the full sweep.
     try:
-        # Step 1: Systematic PID tuning
+        # Step 1: Systematic PID tuning (P → PI → PID); returns best gains or (None, None, None)
         best_kp, best_ki, best_kd = systematic_pid_tuning()
-        
         if best_kp is None:
-            print("Tuning failed - aborting")
-            return
-        
-        # Step 2: Final comparison test
+            print("Tuning failed or aborted — no gains available.")
+            return None, None, None
+
+        # Step 2: Final comparison test using the best gains
         csv_filename = run_final_comparison_test(best_kp, best_ki, best_kd)
-        
+
         if csv_filename:
             print(f"\n{'='*80}")
             print("PHASE 4 COMPLETE!")
             print(f"{'='*80}")
             print(f"Optimized PID gains: Kp={best_kp:.2f}, Ki={best_ki:.3f}, Kd={best_kd:.3f}")
-            print(f"Files created:")
+            print("Files created:")
             print(f"  - {csv_filename}")
             print(f"  - {OUTPUT_DIR}/simple_pid_tuning_results.json")
             print(f"  - {OUTPUT_DIR}/final_comparison_results.json")
-            print(f"  - Individual plots for each gain test")
-            print(f"  - Final comparison plot")
+            print("  - Individual plots for each gain test")
+            print("  - Final comparison plot")
             print(f"\nAll results saved in {OUTPUT_DIR}/")
-            print(f"\nReady for comparison with Phase 3 heuristic results!")
-            print(f"Both controllers tested on same {INITIAL_ALTITUDE:.1f}m → {TARGET_ALTITUDE:.1f}m trajectory")
-            
+            print("\nReady for comparison with Phase 3 heuristic results!")
+            print(f"Both controllers tested on same {INITIAL_ALTITUDE:.1f} m → {TARGET_ALTITUDE:.1f} m trajectory")
             return best_kp, best_ki, best_kd
         else:
-            print("Final test failed")
+            print("Final comparison test failed.")
             return None, None, None
-        
+
     except KeyboardInterrupt:
-        print("\nTest interrupted by user")
+        print("\nTest interrupted by user.")
         return None, None, None
     except Exception as e:
+        # Catch-all so a runtime issue doesn’t leave the drone mid-state.
         print(f"Error during PID testing: {e}")
         return None, None, None
 

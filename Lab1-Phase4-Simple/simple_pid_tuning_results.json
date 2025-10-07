@@ -1,0 +1,111 @@
+{
+  "experimental_design": {
+    "initial_altitude": 0.5,
+    "target_altitude": 1.5,
+    "test_sequence": "0.5m \u2192 1.5m \u2192 0.5m for each gain",
+    "analysis_phase": "0.5m \u2192 1.5m (matches heuristic baseline)"
+  },
+  "best_gains": {
+    "kp": 0.3,
+    "ki": 0.01,
+    "kd": 0.01
+  },
+  "tuning_process": {
+    "p_only": {
+      "0.3": {
+        "settling_time": "inf",
+        "steady_state_error": 0.3178109452736319,
+        "rise_time": "inf",
+        "max_overshoot_percent": 0.0,
+        "control_chattering": 0.0,
+        "rms_error": 0.451675399669571,
+        "final_error": 0.22999999999999998,
+        "mean_absolute_error": 0.4204666666666666
+      },
+      "0.5": {
+        "settling_time": "inf",
+        "steady_state_error": 0.18095,
+        "rise_time": "inf",
+        "max_overshoot_percent": 0.0,
+        "control_chattering": 0.0,
+        "rms_error": 0.3328718472125071,
+        "final_error": 0.1499999999999999,
+        "mean_absolute_error": 0.27956666666666663
+      },
+      "1.0": {
+        "settling_time": "inf",
+        "steady_state_error": 0.05323383084577119,
+        "rise_time": 1.8517484664916992,
+        "max_overshoot_percent": 5.102040816326535,
+        "control_chattering": 0.0,
+        "rms_error": 0.2452875863145137,
+        "final_error": 0.08000000000000007,
+        "mean_absolute_error": 0.12540000000000007
+      }
+    },
+    "pi": {
+      "0.01": {
+        "settling_time": 11.907583713531494,
+        "steady_state_error": 0.04758064516129037,
+        "rise_time": 10.804492235183716,
+        "max_overshoot_percent": 0.0,
+        "control_chattering": 0.0,
+        "rms_error": 0.4651300893298562,
+        "final_error": 0.06000000000000005,
+        "mean_absolute_error": 0.3746666666666666
+      },
+      "0.05": {
+        "settling_time": "inf",
+        "steady_state_error": 0.13905,
+        "rise_time": 6.251637935638428,
+        "max_overshoot_percent": 24.44444444444444,
+        "control_chattering": 0.0,
+        "rms_error": 0.3794329101874709,
+        "final_error": 0.20999999999999996,
+        "mean_absolute_error": 0.2892666666666667
+      },
+      "0.1": {
+        "settling_time": "inf",
+        "steady_state_error": 0.27338308457711447,
+        "rise_time": 3.6555776596069336,
+        "max_overshoot_percent": 37.50000000000001,
+        "control_chattering": 0.0,
+        "rms_error": 0.4177347643341806,
+        "final_error": 0.3500000000000001,
+        "mean_absolute_error": 0.3564333333333334
+      }
+    },
+    "pid": {
+      "0.01": {
+        "settling_time": 13.608162641525269,
+        "steady_state_error": 0.061428571428571485,
+        "rise_time": 11.690455198287964,
+        "max_overshoot_percent": 0.0,
+        "control_chattering": 0.0,
+        "rms_error": 0.5320482434266026,
+        "final_error": 0.050000000000000044,
+        "mean_absolute_error": 0.4278
+      },
+      "0.05": {
+        "settling_time": "inf",
+        "steady_state_error": 0.24497512437810942,
+        "rise_time": "inf",
+        "max_overshoot_percent": 0.0,
+        "control_chattering": 0.0,
+        "rms_error": 0.4333485894750322,
+        "final_error": 0.09000000000000008,
+        "mean_absolute_error": 0.3735666666666666
+      },
+      "0.1": {
+        "settling_time": "inf",
+        "steady_state_error": 0.28835820895522385,
+        "rise_time": "inf",
+        "max_overshoot_percent": 0.0,
+        "control_chattering": 0.0,
+        "rms_error": 0.43573501121667974,
+        "final_error": 0.1299999999999999,
+        "mean_absolute_error": 0.3962333333333333
+      }
+    }
+  }
+}

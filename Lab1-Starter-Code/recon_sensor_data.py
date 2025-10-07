@@ -41,33 +41,82 @@ def ensure_dir(path):
 def get_sensor_readings(tello):
     """
     Extract sensor readings from Tello state with proper unit conversions.
-    
-    TODO: Implement sensor reading logic
-    1. Get the current state dictionary: tello.get_current_state()
-    2. Extract acceleration values (agx, agy, agz) and convert from cm/s² to m/s²
-    3. Extract velocity values (vgx, vgy, vgz) and convert from cm/s to m/s
-    4. Extract attitude values (roll, pitch, yaw) - already in degrees
-    5. Get sonar height: tello.get_distance_tof() and convert from cm to m
-    6. Get barometer height: tello.get_barometer() - already in m (or check units!)
-    7. Get battery level: tello.get_battery()
-    
-    Hint: Use a helper function to safely extract values from the state dictionary
-    and handle None/missing values gracefully (return 0.0 as default).
-    
-    Returns dict with all values in SI units (meters, m/s, m/s², degrees)
+
+    Returns a dict (all SI units unless noted):
+        ax, ay, az         : linear acceleration [m/s^2]
+        vx, vy, vz         : linear velocity [m/s]
+        roll, pitch, yaw   : attitude [deg]
+        height_sonar       : ToF range [m]
+        height_baro        : barometric altitude [m]
+        battery            : battery percent [%]
     """
-    # TODO: Implement sensor reading
-    # Hint: The state dictionary contains 'agx', 'agy', 'agz', 'vgx', 'vgy', 'vgz', 
-    # 'roll', 'pitch', 'yaw', etc.
-    # Remember: djitellopy uses centimeters for most measurements!
-    
+        # Helper: safely pull a numeric field from the state dict;
+    # return np.nan if missing or not parseable.
+    def _get_numeric(d, key):
+        try:
+            val = d.get(key, np.nan)
+            # Some fields may arrive as strings; coerce to float when possible.
+            return float(val) if val is not None else np.nan
+        except Exception:
+            return np.nan
+
+    # Helper: convert centimeters → meters, handling NaN gracefully.
+    def _cm_to_m(x_cm):
+        return x_cm / 100.0 if np.isfinite(x_cm) else np.nan
+
+    # 1) Snapshot the full state dict (includes 'agx', 'vgx', 'roll', etc.)
+    # djitellopy keeps a cached state; this is non-blocking.
+    state = tello.get_current_state() or {}
+
+    # 2) Acceleration (SDK gives cm/s^2) → [m/s^2]
+    ax = _cm_to_m(_get_numeric(state, "agx"))
+    ay = _cm_to_m(_get_numeric(state, "agy"))
+    az = _cm_to_m(_get_numeric(state, "agz"))
+
+    # 3) Velocity (SDK gives cm/s) → [m/s]
+    vx = _cm_to_m(_get_numeric(state, "vgx"))
+    vy = _cm_to_m(_get_numeric(state, "vgy"))
+    vz = _cm_to_m(_get_numeric(state, "vgz"))
+
+    # 4) Attitude (SDK gives degrees already)
+    roll  = _get_numeric(state, "roll")
+    pitch = _get_numeric(state, "pitch")
+    yaw   = _get_numeric(state, "yaw")
+
+    # 5) Sonar/ToF height: get_distance_tof() returns centimeters (int) → meters
+    try:
+        tof_cm = tello.get_distance_tof()
+        height_sonar = float(tof_cm) / 100.0 if tof_cm is not None else np.nan
+    except Exception:
+        height_sonar = np.nan
+
+    # 6) Barometer: djitellopy.get_barometer() is usually meters as float.
+    # Add a defensive check: if value is implausibly large for meters,
+    # assume it was centimeters and convert.
+    try:
+        baro_val = tello.get_barometer()  # expected meters (float)
+        if baro_val is None:
+            height_baro = np.nan
+        else:
+            height_baro = float(baro_val)
+            if height_baro > 25.0:  # larger than any indoor flight in meters
+                height_baro = height_baro / 100.0  # treat as centimeters
+    except Exception:
+        height_baro = np.nan
+
+    # 7) Battery percent
+    try:
+        battery = float(tello.get_battery())
+    except Exception:
+        battery = np.nan
+
     return {
-        'ax': 0.0, 'ay': 0.0, 'az': 0.0,
-        'vx': 0.0, 'vy': 0.0, 'vz': 0.0,
-        'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
-        'height_sonar': 0.0,
-        'height_baro': 0.0,
-        'battery': 0.0
+        "ax": ax, "ay": ay, "az": az,
+        "vx": vx, "vy": vy, "vz": vz,
+        "roll": roll, "pitch": pitch, "yaw": yaw,
+        "height_sonar": height_sonar,
+        "height_baro": height_baro,
+        "battery": battery,
     }
 
 def move_to_altitude(tello, current_altitude, target_altitude):
@@ -150,20 +199,95 @@ def main():
         mission_start_time = time.time()
         print(f"Mission start time: {mission_start_time}")
         
-        # TODO: Implement the main data collection loop
-        # 1. Open CSV file for writing with appropriate fieldnames
-        # 2. Write CSV header
-        # 3. Loop through each altitude setpoint:
-        #    a. Move to the altitude
-        #    b. Collect data at 10 Hz for TIME_PER_ALTITUDE seconds
-        #    c. Write each sample to CSV with mission_time, target_altitude, sensor readings
-        # 4. Continue collecting for a few more seconds at final altitude
-        
-        # Hint: Use mission_start_time to calculate mission_time for each sample
-        # Hint: Use next_sample_time to maintain consistent 10 Hz sampling
-        # Hint: CSV fieldnames should include: mission_time, target_altitude, 
-        #       current_altitude_est, ax, ay, az, vx, vy, vz, roll, pitch, yaw,
-        #       height_sonar, height_baro, battery
+        # ---------------- MAIN DATA COLLECTION LOOP (10 Hz) ----------------
+        # Open the CSV and stream samples for the entire mission timeline.
+        csv_filename = os.path.join(OUTPUT_DIR, "sensor_data.csv")
+        fieldnames = [
+            # Global timeline
+            "mission_time",          # seconds since mission_start_time
+            "target_altitude",       # setpoint [m]
+            "current_altitude_est",  # fused estimate (sonar preferred) [m]
+            # IMU/kinematics
+            "ax", "ay", "az",        # [m/s^2]
+            "vx", "vy", "vz",        # [m/s]
+            "roll", "pitch", "yaw",  # [deg]
+            # Heights
+            "height_sonar",          # [m]
+            "height_baro",           # [m]
+            # Utilities
+            "battery",               # [%]
+        ]
+
+        # We'll enforce 10 Hz using a "next_sample_time" scheduler so timing stays stable
+        # regardless of loop body duration (sleep the remainder of each 0.1 s frame).
+        with open(csv_filename, "w", newline="") as f:
+            import csv
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+
+            # Helper to sample once (used during holds and at the end)
+            def _sample_and_write(current_target):
+                now = time.time()
+                mission_time = now - mission_start_time
+
+                # Read all raw channels
+                readings = get_sensor_readings(tello)
+
+                # Fused altitude estimate (prefer sonar if reasonable, else baro)
+                current_altitude_est = get_current_altitude(tello)
+
+                row = {
+                    "mission_time": float(mission_time),
+                    "target_altitude": float(current_target),
+                    "current_altitude_est": float(current_altitude_est),
+                    "ax": readings["ax"], "ay": readings["ay"], "az": readings["az"],
+                    "vx": readings["vx"], "vy": readings["vy"], "vz": readings["vz"],
+                    "roll": readings["roll"], "pitch": readings["pitch"], "yaw": readings["yaw"],
+                    "height_sonar": readings["height_sonar"],
+                    "height_baro": readings["height_baro"],
+                    "battery": readings["battery"],
+                }
+                writer.writerow(row)
+                return now  # return the wall-clock time we sampled at
+
+            # Iterate through each altitude setpoint
+            for target_altitude in ALTITUDE_SETPOINTS:
+                print(f"\n→ Target altitude: {target_altitude:.2f} m")
+
+                # Move to the setpoint (discrete move_up/down in centimeters)
+                current_altitude = get_current_altitude(tello)
+                move_to_altitude(tello, current_altitude, target_altitude)
+
+                # Hold at the setpoint and record for TIME_PER_ALTITUDE seconds at 10 Hz
+                hold_start = time.time()
+                next_sample_time = hold_start  # start sampling immediately
+                while (time.time() - hold_start) < TIME_PER_ALTITUDE:
+                    # Take one sample and write row
+                    t_sample = _sample_and_write(target_altitude)
+
+                    # Schedule next 10 Hz tick; sleep the remainder if any
+                    next_sample_time += SAMPLE_DT
+                    sleep_time = max(0.0, next_sample_time - time.time())
+                    if sleep_time > 0:
+                        time.sleep(sleep_time)
+
+                # After each setpoint hold, let the drone settle briefly (already done in move)
+                # but take one more sample to capture the settled state
+                _sample_and_write(target_altitude)
+
+            # After the final setpoint, linger a couple seconds to round out the mission log
+            final_target = ALTITUDE_SETPOINTS[-1]
+            end_linger_start = time.time()
+            next_sample_time = end_linger_start
+            while (time.time() - end_linger_start) < max(SETTLE_TIME, 2.0):
+                _sample_and_write(final_target)
+                next_sample_time += SAMPLE_DT
+                sleep_time = max(0.0, next_sample_time - time.time())
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+
+        print(f"\nSaved Phase 1 data → {csv_filename}")
+
         
         csv_filename = os.path.join(OUTPUT_DIR, "sensor_data.csv")
         
