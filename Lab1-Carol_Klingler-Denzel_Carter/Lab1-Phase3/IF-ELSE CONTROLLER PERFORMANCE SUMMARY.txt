@@ -1,0 +1,36 @@
+• Compare your calibrated height sensor signal against the reference height (choose the
+better one from Phase 2)
+
+NOTE: The calibration scale of 0.35 and bias of 0.024 from phase 2 (sonar calibration linear regression fit) applies to altitude changes (delta_h) and not absolute altitude and as such were not applied to the sonar readings. The bias of only 2.4 cm is quite small and the scale of 0.35 may refer to velocity command to motion mismatch since we used expected_dh = velocity_command * time. (REDACTED: If we wanted to calibrate to absolute altitude properly, we would need to conduct another experiment where we use a tape-measure or other tool to see actual altitude vs sonar readings and calibrate from that. Therefore, we proceed with raw sonar readings for this control. These calibrated values are written in the final column of the heuristic control data CSV. As seen, this suggests that if I wanted the 'true' height of the drone to be more accurate to the target altitude, that the adjustment value should be used in loop. This will result in the drone flying higher, closer to the target altitude, rather than just displaying that the altitude is close in value. Given that the scale is 0.35, the actual performance of the heuristic control may vary from our result.)
+
+
+• Implement appropriate velocity commands for up/down/hold actions (complete, see script)
+• Log performance data like time, commanded height, actual height, control output (complete, see script)
+• Run for 30 seconds to capture performance data  (complete, see script)
+• Generate plots showing height tracking and control effort  (complete, see script)
+
+
+1. Does the system reach and maintain the target altitude?
+Yes, the system does reach the target altitude, however the oscillations amplitudes are large enough that the altitude departs from the acceptable at its peaks. 
+
+=======================================================================
+
+2. Is the behavior smooth or jerky?
+The behavior is mostly smooth, as it is oscillating at 'low' frequencies and not very jittery or jerky.
+
+=======================================================================
+
+3. Is it stable or oscillatory?
+It is oscillatory, and oscillates around the correct target altitude. However as stated in Q1, the oscillation amplitude is larger than the acceptable band. 
+
+
+
+=======================================================================
+4. What causes any oscillations you observe?
+The oscillations occur because outside of the target band, the drone is commanded a single set velocity to correct the error. However, this velocity is not dependent on how large the error is. This causes overshoot in the motion in the opposite direction, which again causes the drone to depart the range, and this cycles continues. 
+
+=======================================================================
+5. What are the fundamental limitations of this approach?
+The biggest limitation is that any error regardless of magnitude is treated the same (i.e., given the same response velocity command). This means that whether you are out of the acceptable band by 1 cm or 10 m you are correcting with the same velocity. Because of momentum and delays in the propulsion system, oscillations can occur outside of your target range. The heuristic control velocities would have to be very small in order for the oscillation amplitudes to be within the acceptable band, but large errors would take much longer to correct. 
+
+
