@@ -1,7 +1,7 @@
 
 1. Which sensors are noisy? Compare noise levels.
 
-The noise values re as follows: 
+The noise values are as follows: 
 
 Acceleration noise (x,y,z):  0.157, 0.107, 0.189 m/s²
 Velocity noise (x,y,z):      0.000, 0.000, 0.002 m/s
@@ -11,7 +11,7 @@ Barometer height noise:      7.454 m
 
 The noise is measured in standard deviations of the detrended signal. As you can see, the Barometer had the greatest noise, at 7.454 m. Sonar height, on the other hand, has very little noise, at only 0.060 m standard deviations. Meanwhile, acceleration noise in both x y and z have relatively low levels of noise, with z having the greatest noise, x 2nd greatest, and y with the least noise. Attitude noise is relatively small as well, at around .3, .4 and .4 standard deviations. 
 
-*** SEEMS WEIRD THE VELOCITY NOISE IS SO LOW - Low texture/low light possible 
+It is odd  that the velocity noise is so low, but it is possible the reason is the fidelity of the sensors or low texture/light. 
 
 =====================================================
 
