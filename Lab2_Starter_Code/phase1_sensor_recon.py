@@ -34,15 +34,6 @@ def ensure_dir(path):
     os.makedirs(path, exist_ok=True)
 
 
-def get_tello_frame_opencv():
-    """
-    OpenCV-based capture for Tello video stream.
-    This avoids PyAV errors on Windows when opening udp://@0.0.0.0:11111
-    """
-    cap = cv2.VideoCapture("udp://0.0.0.0:11111", cv2.CAP_FFMPEG)
-    return cap
-
-
 class CoordinateTransformer:
     """
     Coordinate transformations between AprilTag and drone frames.
@@ -65,30 +56,28 @@ class CoordinateTransformer:
         """
         Transform AprilTag measurements to drone body frame.
 
-        For this lab we assume drone is facing the tag (yaw ≈ 0), so we can map axes:
+        Assumption: drone is facing the tag (yaw ~ 0)
 
-        - tag z (distance out of tag) → drone x (forward) but with sign flip
-        - tag x (right) → drone y (right) (same sign)
-        - tag y (up) → drone z (up) (same sign)
+        Mapping we use:
+        - tag z (distance out of tag) → drone x (forward) with a sign flip
+        - tag x (right) → drone y (right) same sign
+        - tag y (up) → drone z (up) same sign
         """
-        x_drone = -float(z_tag)   # farther from tag → more negative forward
+        x_drone = -float(z_tag)   # farther from tag → drone is "behind", so negative forward
         y_drone = float(x_tag)    # right stays right
         z_drone = float(y_tag)    # up stays up
         return x_drone, y_drone, z_drone
 
     def position_error_to_velocity_command(
-        self,
-        x_error,
-        y_error,
-        z_error,
-        kp_x=0.5,
-        kp_y=0.5,
-        kp_z=0.5,
+        self, x_error, y_error, z_error, kp_x=0.5, kp_y=0.5, kp_z=0.5
     ):
         """
         Convert position errors to velocity commands using proportional control.
 
-        velocity = Kp * error, with |velocity| ≤ 0.3 m/s
+        velocity = Kp * error
+        (translation: commanded_speed = gain × how_far_off_we_are)
+
+        Then clip so |velocity| ≤ 0.3 m/s for safety.
         """
         max_velocity = 0.3
 
@@ -119,6 +108,7 @@ def get_apriltag_detection(frame, detector):
     if len(detections) > 0:
         detection = detections[0]
         pose = detection.pose_t.flatten()
+
         return {
             "detected": True,
             "x": pose[0],
@@ -132,56 +122,67 @@ def get_apriltag_detection(frame, detector):
             "y": np.nan,
             "z": np.nan,
         }
-
-
-def move_to_distance(tello, detector, target_distance, cap, timeout=30.0):
+def move_to_distance(tello, detector, target_distance, timeout=30.0):
     """
     Move drone to target distance from AprilTag using simple proportional control.
-    Uses OpenCV capture to read frames.
+    Extra safety: only move when tag is seen, and never get closer than a floor distance.
     """
     print(f"\nPositioning to {target_distance:.1f}m from tag...")
 
     start_time = time.time()
     settled_count = 0
-    required_settled = 20  # need to be within tolerance 20 cycles ~2s
+    required_settled = 12          # a little less strict
+    missed_detections = 0
+    max_missed = 15                # ~1.5 s of no tag → stop
+    min_safe_distance = 0.75       # never try to go closer than this (meters)
+    kp = 0.35                      # smaller push
+    deadband = 0.03                # 3 cm
 
     while time.time() - start_time < timeout:
-        ret, frame = cap.read()
-        if not ret:
-            # no frame → pause and try again
-            tello.send_rc_control(0, 0, 0, 0)
-            time.sleep(0.1)
-            continue
-
+        frame = tello.get_frame_read().frame
         detection = get_apriltag_detection(frame, detector)
 
         if detection["detected"]:
+            missed_detections = 0
             current_distance = detection["z"]
+
+            # safety: if we're already closer than our safe floor, just stop
+            if current_distance < min_safe_distance:
+                print(f"Too close to wall/tag ({current_distance:.2f} m) → holding.")
+                tello.send_rc_control(0, 0, 0, 0)
+                break
+
             error = target_distance - current_distance
 
-            if abs(error) < 0.05:  # within 5 cm
+            # if we’re basically there, just hold and count it
+            if abs(error) < deadband:
                 settled_count += 1
+                tello.send_rc_control(0, 0, 0, 0)
                 if settled_count >= required_settled:
                     print(f"Reached target: {current_distance:.2f}m")
                     break
             else:
                 settled_count = 0
+                # proportional velocity, but very limited
+                velocity_cmd = np.clip(kp * error, -0.15, 0.15)  # slower!
+                rc_cmd = int(-velocity_cmd * 100)
+                tello.send_rc_control(0, rc_cmd, 0, 0)
 
-            # simple P on distance
-            velocity_cmd = np.clip(0.5 * error, -0.3, 0.3)
-            # Tello rc: left/right, forward/back, up/down, yaw
-            # we want forward/back, so that's the second arg
-            rc_cmd = int(-velocity_cmd * 100)  # sign flip: +forward is negative rc
-            tello.send_rc_control(0, rc_cmd, 0, 0)
         else:
-            # no tag → stop
+            # no tag → stop, and after a bit give up
+            missed_detections += 1
             tello.send_rc_control(0, 0, 0, 0)
+            if missed_detections >= max_missed:
+                print("No tag detected for a while → stopping approach.")
+                break
 
         time.sleep(0.1)
 
-    # stop at end
+    # final stop
     tello.send_rc_control(0, 0, 0, 0)
-    time.sleep(1.0)
+    time.sleep(0.5)
+
+
 
 
 def characterize_apriltag_detection():
@@ -199,12 +200,8 @@ def characterize_apriltag_detection():
     tello.streamon()
     time.sleep(2)
 
-    # OpenCV capture (our fallback)
-    cap = get_tello_frame_opencv()
-    if not cap.isOpened():
-        print("WARNING: OpenCV could not open Tello stream. Detection will fail.")
-
-    detector = Detector(families="tag36h11")
+    detector = Detector(families='ta' \
+    'g36h11')
 
     try:
         battery = tello.get_battery()
@@ -219,9 +216,18 @@ def characterize_apriltag_detection():
         tello.takeoff()
         time.sleep(2)
 
+        # ↓↓↓ only this part is new ↓↓↓
         print("Adjusting altitude...")
-        tello.move_down(30)
-        time.sleep(2)
+        try:
+            tello.move_down(30)
+            time.sleep(2)
+        except Exception as e:
+            # drone said "error No valid imu" – we'll just continue at current height
+            print(f"Could not move down: {e}. Continuing at current altitude.")
+        # ↑↑↑ end of new part ↑↑↑
+
+        print("\nStarting AprilTag characterization")
+        # ... rest of your code stays the same ...
 
         print("\nStarting AprilTag characterization")
         print(f"Test distances: {TEST_DISTANCES}")
@@ -245,23 +251,14 @@ def characterize_apriltag_detection():
             for test_idx, test_distance in enumerate(TEST_DISTANCES):
                 print(f"\nTest {test_idx+1}/{len(TEST_DISTANCES)}: {test_distance:.1f}m")
 
-                move_to_distance(tello, detector, test_distance, cap)
+                move_to_distance(tello, detector, test_distance)
 
                 print(f"Collecting {SAMPLES_PER_DISTANCE} samples...")
                 detection_count = 0
 
                 for sample_num in range(SAMPLES_PER_DISTANCE):
-                    ret, frame = cap.read()
-                    if not ret:
-                        detection = {
-                            "detected": False,
-                            "x": np.nan,
-                            "y": np.nan,
-                            "z": np.nan,
-                        }
-                    else:
-                        detection = get_apriltag_detection(frame, detector)
-
+                    frame = tello.get_frame_read().frame
+                    detection = get_apriltag_detection(frame, detector)
                     battery = tello.get_battery()
 
                     if detection["detected"]:
@@ -324,20 +321,16 @@ def characterize_apriltag_detection():
             tello.end()
         except Exception:
             pass
-        if cap is not None:
-            cap.release()
 
 
 def analyze_characterization_data(csv_filename):
     """
-    Analyze collected characterization data and generate metrics:
-    - Detection success rate per distance
-    - Position noise per distance
-    - Max consecutive dropout per distance
+    Analyze collected characterization data and generate metrics.
     """
     import pandas as pd
 
     print(f"\nAnalyzing characterization data from: {csv_filename}")
+
     df = pd.read_csv(csv_filename)
 
     results = {}
@@ -345,18 +338,17 @@ def analyze_characterization_data(csv_filename):
     for test_distance in df["test_distance"].unique():
         distance_data = df[df["test_distance"] == test_distance]
 
-        # detection rate
+        # detection success rate
         total_samples = len(distance_data)
         detected_samples = int(distance_data["detected"].sum())
-        detection_rate = detected_samples / total_samples
+        detection_rate = detected_samples / total_samples  # fraction
 
-        # helper for noise
+        # noise helper
         def noise_std(series):
             arr = series.to_numpy(dtype=float)
             arr = arr[~np.isnan(arr)]
             if arr.size == 0:
                 return 0.0
-            # remove bias
             arr = arr - np.nanmedian(arr)
             return float(np.nanstd(arr))
 
