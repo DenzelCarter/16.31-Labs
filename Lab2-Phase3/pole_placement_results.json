@@ -1,0 +1,44 @@
+{
+  "design": {
+    "desired_poles": [
+      -0.5,
+      -0.5,
+      -0.5
+    ],
+    "gain_matrix": [
+      [
+        0.5,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.5,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.5
+      ]
+    ],
+    "closed_loop_poles": [
+      -0.5,
+      -0.5,
+      -0.5
+    ]
+  },
+  "metrics": {
+    "x_settling_time": "inf",
+    "x_steady_state_error": 0.1268867643037251,
+    "x_overshoot": 0.0,
+    "y_settling_time": 13.936251401901245,
+    "y_steady_state_error": 0.006252148457877552,
+    "y_overshoot": 0.0,
+    "z_settling_time": "inf",
+    "z_steady_state_error": 0.1865219584323347,
+    "z_overshoot": 16.136261982394945,
+    "multi_axis_settling": "inf",
+    "coordination_spread": "inf"
+  }
+}
