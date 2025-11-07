@@ -1,0 +1,13 @@
+Deliverable 1 (Trajectory tracking data): pid_3cycle_trajectory.csv, pole_3cycle_trajectory.csv
+Deliverable 2 (Performance comparison): trajectory_comparison.json
+Deliverable 3 (Plots): pid_3cycle_tracking.png, pole_3cycle_tracking.png
+Deliverable 4 (Executive Summary): 
+    Which controller met Navy requirements more completely?
+    Quantify the advantage in tracking accuracy and stability:
+    Compare design time: trial-and-error tuning vs. systematic pole selection:
+    Why does error accumulate more with PID over multiple cycles?
+    Final recommendation: Which approach should AeroTech use for the Navy contract?
+    Include plots showing:
+        • 3D trajectory plots (reference vs. actual) for both controllers
+        • Tracking error vs. time for 5-cycle test
+        • Bar chart comparing key metrics

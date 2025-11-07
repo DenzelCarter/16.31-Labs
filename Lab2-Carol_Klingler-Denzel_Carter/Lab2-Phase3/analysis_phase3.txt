@@ -1,0 +1,3 @@
+Deliverable 1 (Pole placement implementation): phase3_pole_placement.py
+Deliverable 2 (Document rationale for final pole selection): 
+Deliverable 3 (Performance validation): pole_placement_results.json

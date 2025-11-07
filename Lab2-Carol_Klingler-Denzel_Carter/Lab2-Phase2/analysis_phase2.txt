@@ -1,0 +1,6 @@
+Time spent tuning: started at 5:50pm, ended at 
+Difficulty achieving simultaneous requirements on all axes:
+Trade-offs encountered (e.g., fast response vs low ovrshoot):
+Deliverable 1 (PID implementation): phase2_classical_multipid.py
+Deliverable 2 (tuning data): 
+Deliverable 3 (requirement evaluation): multi_pid_results.json
