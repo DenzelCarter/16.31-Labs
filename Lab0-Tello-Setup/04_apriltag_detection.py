@@ -57,7 +57,7 @@ def main():
     # Initialize AprilTag detector
     print("Initializing AprilTag detector...")
     detector = Detector(
-        families='tag36h11',  # Common AprilTag family
+        families='tag25h9',  # Common AprilTag family
         nthreads=1,
         quad_decimate=2.0,    # Increase speed, decrease accuracy
         quad_sigma=0.0,

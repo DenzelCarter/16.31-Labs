@@ -1,6 +1,6 @@
-Time spent tuning: 11/07/25 - 5:50pm-
-Difficulty achieving simultaneous requirements on all axes:
-Trade-offs encountered (e.g., fast response vs low ovrshoot):
+Time spent tuning: 11/07/25 - 5:50pm-6:50pm, 11/08/25 - 1:40pm-3:00pm
+Difficulty achieving simultaneous requirements on all axes: Aside from taking a very long time to perform trial and error for each axis individually, it was difficult to determine which responses were better between tuning choices, some would be faster but oscillate worse while stable responses were too slow. There seemed to be some coupling between axes tuning that made it difficult to achieve better tuning for all 3 axes, which makes sense since they all rely on the thrust vectoring of the same 4 rotors.
+Trade-offs encountered (e.g., fast response vs low overshoot): Higher proportional gains were faster and would actually reach the target, but would have worse overshoot and also had issues with less stability (more oscillations). 
 Deliverable 1 (PID implementation): phase2_classical_multipid.py
-Deliverable 2 (tuning data): 
+Deliverable 2 (tuning data): old-plots
 Deliverable 3 (requirement evaluation): multi_pid_results.json
