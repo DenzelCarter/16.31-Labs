@@ -1,5 +1,5 @@
 Key findings:
 Phase 1: The Tello drone operates optimally around 1.5-2.0m away from an Apriltag to be far enough away to always detect the Apriltag while also keeping multiaxis noise low.
-Phase 2:
-Phase 3:
-Phase 4:
+Phase 2: Trial-and-error tuning of the PID controller for all 3 axes separately is very time consuming with no guarantees on performance during tuning, making it very unwieldy for users. Its performance is also not very impressive for all the time spent tuning.
+Phase 3: Pole placement is a much more direct approach that uses the integrator model of velocity command to position to allow direct pole manipulation for each axis. Settling time requirements can theoretically be guaranteed by pole placement as well as overshoot by using real poles, although actual results varied from this expectation.
+Phase 4: Pole placement won out over the heuristic PID approach, being much faster to tune as well as more stable and accurate in trajectory tracking.

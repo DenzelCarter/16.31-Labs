@@ -3,7 +3,7 @@
 Lab 2 - Phase 1: AprilTag Sensor Characterization
 
 Objectives:
-1. Implement coordinate frame transformations between AprilTag and drone frames
+1. Implement coordinate frame transformat ons between AprilTag and drone frames
 2. Characterize AprilTag detection performance at various distances
 3. Analyze position measurement noise and detection reliability
 """
@@ -25,7 +25,7 @@ TEST_DISTANCES = [1.0, 1.5, 2.0, 2.5, 3.0]  # meters
 SAMPLES_PER_DISTANCE = 300  # 30 seconds at 10 Hz
 
 # AprilTag setup
-TAG_SIZE = 0.162  # meters
+TAG_SIZE = 0.100  # meters
 CAMERA_PARAMS = [921.170702, 919.018377, 459.904354, 351.238301]
 
 
@@ -201,7 +201,7 @@ def characterize_apriltag_detection():
     time.sleep(2)
 
     detector = Detector(families='ta' \
-    'g36h11')
+    'g25h9')
 
     try:
         battery = tello.get_battery()

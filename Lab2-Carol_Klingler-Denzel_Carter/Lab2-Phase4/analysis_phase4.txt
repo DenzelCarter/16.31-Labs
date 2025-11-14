@@ -2,11 +2,11 @@ Deliverable 1 (Trajectory tracking data): pid_3cycle_trajectory.csv, pole_3cycle
 Deliverable 2 (Performance comparison): trajectory_comparison.json
 Deliverable 3 (Plots): pid_3cycle_tracking.png, pole_3cycle_tracking.png
 Deliverable 4 (Executive Summary): 
-    Which controller met Navy requirements more completely?
-    Quantify the advantage in tracking accuracy and stability:
-    Compare design time: trial-and-error tuning vs. systematic pole selection:
-    Why does error accumulate more with PID over multiple cycles?
-    Final recommendation: Which approach should AeroTech use for the Navy contract?
+    Which controller met Navy requirements more completely? The pole placement controller performed much better than the PID controller, but was still not able to meet many of the requirements.
+    Quantify the advantage in tracking accuracy and stability: Pole placement resulted in a 23% reduction in mean tracking error, a 63% smaller max deviation from the target trajectory, and error growth down from 2.2% to 0%, indicating higher stability.
+    Compare design time: trial-and-error tuning vs. systematic pole selection: This was the largest disparity, with the trial-and-error taking substantially more time to tune compared to the pole placement method. While the heuristic approach took around 3 hours to tune for suboptimal results, the pole placement was done in around 20-30 minutes for equal or better performance in each axis.
+    Why does error accumulate more with PID over multiple cycles? We did notice error would grow for PID and not for pole placement, which is likely due to the integral term causing integral windup and drift. This phenomenon occurs from the way the integral term in PID uses past error to inform and control current commands. Although this can be helpful for eliminating steady state error, if the actuator saturates, the integral term can accumulate error and make stability poor when actuators finally become unsaturated. Since the apriltag sensing is so noisy, the I term is also integrating this leading to poor results.
+    Final recommendation: Which approach should AeroTech use for the Navy contract? AeroTech should use the pole placement approach for much faster tuning of their drones as well as improved stability and accuracy in trajectory tracking. Although working with the Tello drones makes it more difficult to properly benchmark these two methods due to poor streaming and Apriltag detection accuracy as well as small actuator systems, a larger scale system would certainly be easier to tune with pole placement. We do make the assumption that the velocity commands are fast enough to have an integrator model for our plant, which is deemed reasonable due to the technology of the Tello board.
     Include plots showing:
         • 3D trajectory plots (reference vs. actual) for both controllers
         • Tracking error vs. time for 5-cycle test
