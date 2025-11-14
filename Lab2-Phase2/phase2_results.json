@@ -1,0 +1,26 @@
+{
+  "gains": {
+    "kp_x": 0.3,
+    "ki_x": 0.0,
+    "kd_x": 0.0,
+    "kp_y": 0.0,
+    "ki_y": 0.0,
+    "kd_y": 0.0,
+    "kp_z": 0.0,
+    "ki_z": 0.0,
+    "kd_z": 0.0
+  },
+  "metrics": {
+    "x_settling_time": Infinity,
+    "x_steady_state_error": NaN,
+    "x_overshoot": 0.0,
+    "y_settling_time": Infinity,
+    "y_steady_state_error": NaN,
+    "y_overshoot": 0.0,
+    "z_settling_time": Infinity,
+    "z_steady_state_error": NaN,
+    "z_overshoot": 0.0,
+    "multi_axis_settling": Infinity,
+    "coordination_spread": 0.0
+  }
+}
