@@ -1,4 +1,9 @@
 Deliverable 1 (Plots showing detection success rate and pose noise vs distance): apriltag_characterization.png
-Deliverable 2 (Identify optimal operating range): Based on the pose noise vs distance alone, the optimal operating range appears to be around 1.5m away, which agrees with the expectation for Tello. This is the point where all 3 axis measurement noises were simultaneously low. However, the detection reliability was below the desired threshold of 95% so we will prefer to look to 2.0m away from the Apriltag, where the noise in each axis is still relatively low. Somewhere in this 1.5 to 2.0 m range appears to be the optimal range based on our testing. Although being further away gives a very high detection rate, noise in the 3 axes increases quite fast so we don't want it to be too far away.
+Deliverable 2 (Identify optimal operating range): 
+    Based on the pose noise vs distance alone, the optimal operating range appears to be around 1.5m away, which agrees with 
+    the expectation for Tello. This is the point where all 3 axis measurement noises were simultaneously low. However, the detection reliability was below the desired 
+    threshold of 95% so we will prefer to look to 2.0m away from the Apriltag, where the noise in each axis is still relatively low. Somewhere in this 1.5 to 2.0 m range appears 
+    to be the optimal range based on our testing. Although being further away gives a very high detection rate, noise in the 3 axes increases quite fast so we don't want it to be 
+    too far away.
 Deliverable 3 (Document noise characteristics): characterization_results.json
 Deliverable 4 (Implementation of coordinate frame and sensor characterization): phase1_sensor_recon.py
