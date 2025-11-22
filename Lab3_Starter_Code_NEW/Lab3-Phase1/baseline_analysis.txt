@@ -1,0 +1,8 @@
+
+BASELINE CONTROLLER VULNERABILITY ANALYSIS
+
+The baseline controller uses the proportional law
+v_z = K_p (z_target - z_ToF)
+Translation: v_z is the commanded vertical velocity (m/s), K_p is the altitude gain, z_target is the desired altitude (m), and z_ToF is the corrupted ToF reading (m).
+
+If an attacker adds a +0.5 m bias so that z_ToF = z_true + 0.5, then for example with z_true = 0.60 m, z_target = 0.10 m and K_p = 0.50, the controller computes v_z = 0.50 (0.10 - 1.10) = -0.50 m/s (saturated to -0.30 m/s downward), so the drone aggressively descends even though it is already close to the ground, causing a hard landing or crash purely because it blindly trusts the biased sensor measurement.
