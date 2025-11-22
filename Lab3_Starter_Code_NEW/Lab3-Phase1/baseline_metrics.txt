@@ -1,0 +1,11 @@
+BASELINE LANDING METRICS
+========================================
+
+Tag size used: 0.117m
+Landing error: 13.04 cm
+Touchdown velocity (|vz_cmd|): 0.105 m/s
+Time to land: 20.0 s
+Final position: (1.61, -0.07) m
+
+Note: Phase 3 descent used ONLY altitude control from raw ToF.
+No horizontal positioning was attempted during descent.
