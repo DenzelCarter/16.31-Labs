@@ -63,13 +63,14 @@ A8: The trade-off is that with smaller Q, the KF is less responsive to real dist
 ==============
 
 Based on your experiments, summarize:
-- Maximum safe attack duration: [X] seconds
-- Key limiting factor: [e.g., "Velocity drift", "Position uncertainty"]
-- Recommendation for Phase 3: [Your operational guidelines]
+- Maximum safe attack duration: 4 seconds. Beyond this, the altitude error grows past 15 cm threshold during the 5 and 10s tests. 
+- Key limiting factor: Position uncertainty. Once measurements are removed, the double integrator model and process noise make altitude estimation drift, and the larger the blind window the larger the accumulated drift and mismatch between real descent and the KF state. 
+- Recommendation for Phase 3: Our operational guideline is if the tag is lost for more than 3-4 seconds, abort the blind navigation and switch to a safe fallback rather than aggressive maneuvers. Additionally, descrease process noise to slow the drift during prediction only mode and verify that the normal tracking is still responsive. 
 
 SUPPORTING DATA:
 ================
 Include key numbers from your tests:
-- 2s attack max error: [X] cm
-- 5s attack max error: [X] cm  
-- 10s attack max error: [X] cm
+- 2s attack max error: 5 cm
+- 5s attack max error: 22.1 cm  
+- 10s attack max error: 79.3 cm
+
