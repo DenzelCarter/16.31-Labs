@@ -61,14 +61,14 @@ class AltitudeKalmanFilter:
             # Default: conservative values
             # Q[0,0]: position uncertainty
             # Q[1,1]: velocity uncertainty
-            self.Q = np.diag([0.001**2, 0.01**2])
+            self.Q = np.diag([0.0001**2, 0.001**2])
         else:
             self.Q = Q
         
         # Measurement noise variance
         if R is None:
             # Default: typical ToF sensor noise from Lab 1
-            self.R = np.array([[0.01**2]])
+            self.R = np.array([[0.06**2]])
         else:
             self.R = np.array([[R]]) if np.isscalar(R) else R
         
@@ -111,22 +111,11 @@ class AltitudeKalmanFilter:
         # Convert scalar input to column vector
         u_vec = np.array([[u]]) if np.isscalar(u) else u.reshape(-1, 1)
         
-        # ============================================================
-        # TODO: Implement prediction step
-        # ============================================================
         # 1. State prediction: x_{k|k-1} = A * x_{k-1|k-1} + B * u_{k-1}
-        #    Update self.x_hat using self.A, self.B, and u_vec
-        
-        # YOUR CODE HERE
-        
+        self.x_hat = self.A @ self.x_hat + self.B @ u_vec
         
         # 2. Covariance prediction: P_{k|k-1} = A * P_{k-1|k-1} * A^T + Q
-        #    Update self.P using self.A, self.Q
-        
-        # YOUR CODE HERE
-        
-        
-        # ============================================================
+        self.P = self.A @ self.P @ self.A.T + self.Q
     
     def update(self, measurement):
         """
@@ -144,42 +133,23 @@ class AltitudeKalmanFilter:
         # Convert scalar measurement to correct shape
         y = np.array([[measurement]]) if np.isscalar(measurement) else measurement.reshape(-1, 1)
         
-        # ============================================================
-        # TODO: Implement update step
-        # ============================================================
         # 1. Innovation: nu = y - H * x_{k|k-1}
-        #    Compute innovation and store in self.innovation
-        
-        # YOUR CODE HERE
-        
+        nu = y - self.H @ self.x_hat
+        self.innovation = float(nu[0, 0])
         
         # 2. Innovation covariance: S = H * P_{k|k-1} * H^T + R
-        #    Compute S using self.H, self.P, self.R
-        
-        # YOUR CODE HERE
-        
+        S = self.H @ self.P @ self.H.T + self.R
         
         # 3. Kalman gain: K = P_{k|k-1} * H^T * S^{-1}
-        #    Compute and store in self.K
-        #    Hint: Use np.linalg.inv() for matrix inverse
-        
-        # YOUR CODE HERE
-        
+        S_inv = np.linalg.inv(S)
+        self.K = self.P @ self.H.T @ S_inv
         
         # 4. State update: x_{k|k} = x_{k|k-1} + K * nu
-        #    Update self.x_hat using Kalman gain and innovation
-        
-        # YOUR CODE HERE
-        
+        self.x_hat = self.x_hat + self.K @ nu
         
         # 5. Covariance update: P_{k|k} = (I - K * H) * P_{k|k-1}
-        #    Update self.P
-        #    Hint: I = np.eye(2)
-        
-        # YOUR CODE HERE
-        
-        
-        # ============================================================
+        I = np.eye(2)
+        self.P = (I - self.K @ self.H) @ self.P
     
     def get_state(self):
         """
@@ -214,18 +184,12 @@ class AltitudeKalmanFilter:
         Args:
             prediction_only: True for attack mode (no updates), False for normal
         """
-        # ============================================================
-        # TODO: Implement mode switching
-        # ============================================================
-        # 1. Set self.prediction_only_mode to the input parameter
-        # 2. Print status message indicating mode change
-        #    Example: "[KF] Switched to PREDICTION-ONLY mode (sensor attack)"
-        #         or: "[KF] Switched to NORMAL mode (sensor trusted)"
+        self.prediction_only_mode = bool(prediction_only)
         
-        # YOUR CODE HERE
-        
-        
-        # ============================================================
+        if self.prediction_only_mode:
+            print("[KF] Switched to PREDICTION-ONLY mode (sensor attack)")
+        else:
+            print("[KF] Switched to NORMAL mode (sensor trusted)")
     
     def is_prediction_only(self):
         """Check if in prediction-only mode."""

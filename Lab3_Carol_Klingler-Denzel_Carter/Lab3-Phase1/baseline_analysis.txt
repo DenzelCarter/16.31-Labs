@@ -1,0 +1,10 @@
+The baseline approach of a simple landing using direct sensor feedback is
+succeptive to attack because of the way it purely relies on the accuracy of
+the ToF sensor reading. Let's say our target altitude z_target was 0.2m, 
+proportional control gain was 0.5, actual altitude was 0.1m, 
+and the ToF was attacked and read 0.5m higher than truth, 
+then instead of our commanded vertical velocity giving:
+v_z = K_p (z_target - z_ToF) = 0.5 (0.2 - 0.1) = +0.05, it would give:
+v_z = 0.5 (0.2 - 0.6) = -0.2, which if our drone was actually below the target
+altitude, would cause it to rapidly go the wrong direction and actually crash
+into the ground catastrophically.
