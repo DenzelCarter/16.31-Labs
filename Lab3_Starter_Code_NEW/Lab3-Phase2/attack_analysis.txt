@@ -1,0 +1,73 @@
+
+ATTACK RESILIENCE ANALYSIS
+Student: [Your Name]
+Date: [Date]
+
+Answer the following questions based on your experimental data:
+
+1. ATTACK TOLERANCE
+===================
+
+Q1: What is the maximum attack duration your system can tolerate while
+    maintaining <15cm accuracy?
+
+A1: [Your answer]
+
+Q2: How does estimation error scale with attack duration? Is it linear,
+    quadratic, or something else? Support with data.n
+
+A2: [Your answer]
+
+2. SYSTEM BEHAVIOR
+==================
+
+Q3: Describe what happens to the KF estimate during the attack window.
+    Does it diverge immediately or gradually?
+
+A3: [Your observations]
+
+Q4: When the attack ends and normal measurements resume, how quickly does
+    the KF recover?
+
+A4: [Your observations]
+
+3. CONTROL IMPLICATIONS
+========================
+
+Q5: During the 10s attack test, did the drone's descent behavior become
+    unsafe or unstable? Explain.
+
+A5: [Your observations]
+
+Q6: For a real landing mission (5-8 seconds of descent), what attack
+    duration could your system safely handle?
+
+A6: [Your recommendation]
+
+4. FILTER TUNING
+================
+
+Q7: If you needed to increase attack tolerance from 5s to 10s, how would
+    you modify the Q matrix? Explain your reasoning.
+
+A7: [Your answer]
+
+Q8: What is the tradeoff of decreasing Q to improve prediction-only
+    performance? What might get worse?
+
+A8: [Your answer]
+
+5. CONCLUSIONS
+==============
+
+Based on your experiments, summarize:
+- Maximum safe attack duration: [X] seconds
+- Key limiting factor: [e.g., "Velocity drift", "Position uncertainty"]
+- Recommendation for Phase 3: [Your operational guidelines]
+
+SUPPORTING DATA:
+================
+Include key numbers from your tests:
+- 2s attack max error: [X] cm
+- 5s attack max error: [X] cm  
+- 10s attack max error: [X] cm
