@@ -11,12 +11,14 @@ Answer the following questions based on your experimental data:
 Q1: What is the maximum attack duration your system can tolerate while
     maintaining <15cm accuracy?
 
-A1: [Your answer]
+A1: The maximum attack in which the error stays under the tolerance is 2s. In this time frame the error growth is not high enough where it surpasses the estimation error. At 5s, it is close to passing but the maximum error overshoots the estimation error. 
 
 Q2: How does estimation error scale with attack duration? Is it linear,
-    quadratic, or something else? Support with data.n
+    quadratic, or something else? Support with data.
 
-A2: [Your answer]
+A2: The response seems somewhat quadratic. As shown in the plot generated from the data, you can see the max drift vs attack duration appears to have a quadratic trend. At 2s, the max error is 5cm, at 5s it is 22.1cm, and at 10s it is 79.3cm.From 2 to 5s, the max error 4.4x. From 5 to 10s, the ratio 3.6x. A linear model would anticipate that at 5s the error is around 12.5, and that at 10s it is approximately at 25. The error grows much faster than linear, hinting that the behavior is instead quadratic. 
+
+This behavior makes sense, as due to the double integrator, we find that variance should grow like t^3.Therefore RMS error would scale to t^3/2. This is faster than linear, but slower than pure quadratic, which explains why the integration causes the error to blow up faster with time. 
 
 2. SYSTEM BEHAVIOR
 ==================
@@ -24,12 +26,12 @@ A2: [Your answer]
 Q3: Describe what happens to the KF estimate during the attack window.
     Does it diverge immediately or gradually?
 
-A3: [Your observations]
+A3: The KF estimate gradually diverges, but not instantly. The error grows and divergence increases as time continues. At first, this error is smaller but after a few seconds large deviations begin to impact the system. The estimate continues to follow the model's predicted trajectory, so error only increases if the behavior does not continue to follow its own trajectory.  
 
 Q4: When the attack ends and normal measurements resume, how quickly does
     the KF recover?
 
-A4: [Your observations]
+A4: It recovers very quickly. Immediately after the attack ends, the innovation is immediately large and therefore there is a big correction applied via K. This means the altitude is sharply pulled back to the correct reading. Even for the 10s attack, in less than a second the behavior seems to become consistent with the true data and follows the sensor again. 
 
 3. CONTROL IMPLICATIONS
 ========================
@@ -37,12 +39,12 @@ A4: [Your observations]
 Q5: During the 10s attack test, did the drone's descent behavior become
     unsafe or unstable? Explain.
 
-A5: [Your observations]
+A5:  Yes, the 10s attack pushed the system into unsafe behavior. The compromised sensor read 0.5m higher than reality, and the controller believed the drone was above the ground even though it was actually descending rapidly. Because the KF was then forced into prediction only mode, its estimation drifted linearly and exceeded the threshold of 15cm safety (max error of 79.3cm). This led to unsafe descent behavior, as the controller continued to command downward velocity as if the altitude was far too high and there was no correction. The system wasn't unstable/oscillatory but still was operationally unsafe as the controller could not prevent a hard touchdown from occurring. 
 
 Q6: For a real landing mission (5-8 seconds of descent), what attack
     duration could your system safely handle?
 
-A6: [Your recommendation]
+A6: I would recommend around 4s is the maximum. This is because 5S attack is close to safe, as its average estimation error is below the threshold of safe but the maximum is slightly higher. At 4S, I would expect the maximum error to be pushed slightly below the threshold, and below that would also be in the safe zone. 
 
 4. FILTER TUNING
 ================
@@ -50,12 +52,12 @@ A6: [Your recommendation]
 Q7: If you needed to increase attack tolerance from 5s to 10s, how would
     you modify the Q matrix? Explain your reasoning.
 
-A7: [Your answer]
+A7: I would decrease the Q matrix, which means that the KF trusts its motion model more, and the random acceleration less during the prediction only phase. This way, we expect less random acceleration, the filter sticks more closely to the predicted trajectory and the altitude estimate drifts more slowly, meaning the estimation error exceeds the 16cm threshold and can tolerate a longer blind interval. 
 
 Q8: What is the tradeoff of decreasing Q to improve prediction-only
     performance? What might get worse?
 
-A8: [Your answer]
+A8: The trade-off is that with smaller Q, the KF is less responsive to real disturbances when measurements are available. The behavior then becomes sluggish and lags behind the true values during normal operation. 
 
 5. CONCLUSIONS
 ==============
