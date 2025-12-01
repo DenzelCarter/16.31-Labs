@@ -1,0 +1,37 @@
+
+============================================================
+ATTACK RESILIENCE MISSION REPORT
+============================================================
+
+MISSION PARAMETERS:
+  Target position: (1.5, 0.0, 2.5) m
+  
+TIMELINE:
+  Total mission time: 11.2 s
+  AprilTag lost at: 5.1 s
+  Blind navigation duration: 6.2 s
+  
+PERFORMANCE METRICS:
+
+Altitude Control (during attack):
+  Max estimation error: 16.9 cm
+  Mean estimation error: 8.6 cm
+  Status: [-] FAIL (threshold: 15cm)
+
+Final Position Accuracy:
+  Target altitude: 2.50 m
+  Actual altitude: 2.24 m
+  Final altitude error: 26.0 cm
+  
+  x: 1.60 m (target: 1.5 m, error: 0.10 m)
+  y: -0.27 m (target: 0.0 m, error: 0.27 m)
+  z: 2.24 m (target: 2.5 m, error: 26.0 cm)
+
+NAVIGATION STRATEGY:
+  Normal mode: AprilTag + ToF sensor + KF updates
+  Attack mode: Dead reckoning (x,y) + KF prediction-only (z)
+  Sensor compromise: +0.5m ToF bias during attack
+
+OVERALL RESULT: [-] MISSION DEGRADED
+
+============================================================

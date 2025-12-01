@@ -61,14 +61,14 @@ class AltitudeKalmanFilter:
             # Default: conservative values
             # Q[0,0]: position uncertainty
             # Q[1,1]: velocity uncertainty
-            self.Q = np.diag([0.0001**2, 0.001**2])
+            self.Q = np.diag([0.00001**2, 0.0001**2])
         else:
             self.Q = Q
         
         # Measurement noise variance
         if R is None:
             # Default: typical ToF sensor noise from Lab 1
-            self.R = np.array([[0.06**2]])
+            self.R = np.array([[0.1**2]])
         else:
             self.R = np.array([[R]]) if np.isscalar(R) else R
         
